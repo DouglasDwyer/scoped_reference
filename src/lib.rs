@@ -1,4 +1,4 @@
-//#![deny(warnings)]
+#![deny(warnings)]
 
 //! This crate provides runtime-checked borrow lifetimes. It allows one to store references of the form `&'a T` as structs with lifetime `'static`.
 //! This is useful in situations where a reference with a shorter lifetime cannot be stored naturally.
