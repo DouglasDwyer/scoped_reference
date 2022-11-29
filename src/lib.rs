@@ -39,7 +39,6 @@ use std::ops::*;
 use std::sync::*;
 use std::sync::atomic::*;
 
-
 #[cfg(all(not(doc), not(panic = "abort")))]
 compile_error!("Scoped references are only safe when panics abort the program.");
 
@@ -96,6 +95,18 @@ impl<'a, T: ?Sized> ScopedReference<'a, T> {
     }
 }
 
+impl<'a, T: ?Sized> std::fmt::Debug for ScopedReference<'a, T> {
+    fn fmt(&self, _: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Ok(())
+    }
+}
+
+impl<'a, T: ?Sized> std::fmt::Display for ScopedReference<'a, T> {
+    fn fmt(&self, _: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Ok(())
+    }
+}
+
 impl<'a, T: ?Sized> Drop for ScopedReference<'a, T> {
     fn drop(&mut self) {
         if self.alive.load(Ordering::Acquire) != 0 {
@@ -113,7 +124,7 @@ pub struct ScopedBorrow<T: ?Sized> {
 impl<T: ?Sized> Deref for ScopedBorrow<T> {
     type Target = T;
 
-    fn deref<'a>(&'a self) -> &'a Self::Target {
+    fn deref(&self) -> &Self::Target {
         unsafe { &*self.pointer }
     }
 }
@@ -127,7 +138,19 @@ impl<T: ?Sized> Drop for ScopedBorrow<T> {
 impl<T: ?Sized> Clone for ScopedBorrow<T> {
     fn clone(&self) -> Self {
         self.alive.fetch_add(1, Ordering::Release);
-        Self { pointer: self.pointer.clone(), alive: self.alive.clone() }
+        Self { pointer: self.pointer, alive: self.alive.clone() }
+    }
+}
+
+impl<T: std::fmt::Debug + ?Sized> std::fmt::Debug for ScopedBorrow<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Debug::fmt(&**self, f)
+    }
+}
+
+impl<T: std::fmt::Display + ?Sized> std::fmt::Display for ScopedBorrow<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(&**self, f)
     }
 }
 
@@ -143,13 +166,13 @@ pub struct ScopedBorrowMut<T: ?Sized> {
 impl<T: ?Sized> Deref for ScopedBorrowMut<T> {
     type Target = T;
 
-    fn deref<'a>(&'a self) -> &'a Self::Target {
+    fn deref(&self) -> &Self::Target {
         unsafe { &*self.pointer }
     }
 }
 
 impl<T: ?Sized> DerefMut for ScopedBorrowMut<T> {
-    fn deref_mut<'a>(&'a mut self) -> &'a mut Self::Target {
+    fn deref_mut(&mut self) -> &mut Self::Target {
         unsafe { &mut *self.pointer }
     }
 }
@@ -157,6 +180,18 @@ impl<T: ?Sized> DerefMut for ScopedBorrowMut<T> {
 impl<T: ?Sized> Drop for ScopedBorrowMut<T> {
     fn drop(&mut self) {
         self.alive.store(0, Ordering::Release);
+    }
+}
+
+impl<T: std::fmt::Debug + ?Sized> std::fmt::Debug for ScopedBorrowMut<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Debug::fmt(&**self, f)
+    }
+}
+
+impl<T: std::fmt::Display + ?Sized> std::fmt::Display for ScopedBorrowMut<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(&**self, f)
     }
 }
 

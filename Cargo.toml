@@ -1,6 +1,6 @@
 [package]
 name = "scoped_reference"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/DouglasDwyer/scoped_reference"
@@ -8,6 +8,10 @@ readme = "README.md"
 description = """
 Runtime-checked borrow lifetimes.
 """
+
+[lib]
+test = false
+doctest = false
 
 [profile.dev]
 panic = "abort"
