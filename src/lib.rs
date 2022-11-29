@@ -4,8 +4,9 @@
 //! This is useful in situations where a reference with a shorter lifetime cannot be stored naturally.
 //!
 //! The following example demonstrates the use of scoped references. Scoped references come in both mutable and immutable variants.
-//! If the underlying reference is dropped while scoped borrows to it still exist, then the program panics. Note that `panic = "abort"`
-//! is required for this crate, because allowing unwinding could lead to dangling references and undefined behavior.
+//! If the underlying reference is dropped while scoped borrows to it still exist, then the program panics. Note that a panic
+//! will always cause an immediate abort - unwinding is not allowed - because allowing unwinding could lead to
+//! dangling references and undefined behavior.
 //! 
 //! ```no_run
 //! # use scoped_reference::*;
@@ -39,9 +40,6 @@ use std::ops::*;
 use std::sync::*;
 use std::sync::atomic::*;
 
-#[cfg(all(not(doc), not(panic = "abort")))]
-compile_error!("Scoped references are only safe when panics abort the program.");
-
 /// Allows for obtaining references with `'static` lifetime via runtime
 /// borrow checking.
 pub struct ScopedReference<'a, T: ?Sized> {
@@ -73,7 +71,7 @@ impl<'a, T: ?Sized> ScopedReference<'a, T> {
             },
             Err(r) => {
                 if self.alive.load(Ordering::Acquire) == usize::MAX {
-                    panic!("Cannot borrow a lifetime mutably while it is already borrowed immutably.");
+                    panic_abort("Cannot borrow a lifetime mutably while it is already borrowed immutably.");
                 }
                 else {
                     self.alive.fetch_add(1, Ordering::Release);
@@ -86,7 +84,7 @@ impl<'a, T: ?Sized> ScopedReference<'a, T> {
     /// Obtains a mutable dynamically-checked borrow to the current reference.
     pub fn borrow_mut(&mut self) -> ScopedBorrowMut<T> {
         if self.alive.load(Ordering::Acquire) != 0 {
-            panic!("Scoped lifetime is already borrowed.")
+            panic_abort("Scoped lifetime is already borrowed.")
         }
         else {
             self.alive.store(usize::MAX, Ordering::Release);
@@ -110,7 +108,7 @@ impl<'a, T: ?Sized> std::fmt::Display for ScopedReference<'a, T> {
 impl<'a, T: ?Sized> Drop for ScopedReference<'a, T> {
     fn drop(&mut self) {
         if self.alive.load(Ordering::Acquire) != 0 {
-            panic!("Scoped lifetime was dropped while a borrow was out.")
+            panic_abort("Scoped lifetime was dropped while a borrow was out.")
         }
     }
 }
@@ -197,6 +195,18 @@ impl<T: std::fmt::Display + ?Sized> std::fmt::Display for ScopedBorrowMut<T> {
 
 unsafe impl<T: ?Sized + Send> Send for ScopedBorrowMut<T> {}
 unsafe impl<T: ?Sized + Sync> Sync for ScopedBorrowMut<T> {}
+
+fn panic_abort(error: &str) -> ! {
+    #[cfg(panic = "abort")]
+    {
+        panic!("{}", error);
+    }
+    #[cfg(not(panic = "abort"))]
+    {
+        println!("{}", error);
+        std::process::abort();
+    }
+}
 
 #[cfg(test)]
 mod tests {

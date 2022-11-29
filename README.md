@@ -7,8 +7,9 @@ This crate provides runtime-checked borrow lifetimes. It allows one to store ref
 This is useful in situations where a reference with a shorter lifetime cannot be stored naturally.
 
 The following example demonstrates the use of scoped references. Scoped references come in both mutable and immutable variants.
-If the underlying reference is dropped while scoped borrows to it still exist, then the program panics. Note that `panic = "abort"`
-is required for this crate, because allowing unwinding could lead to dangling references and undefined behavior.
+If the underlying reference is dropped while scoped borrows to it still exist, then the program panics. Note that a panic
+will always cause an immediate abort - unwinding is not allowed - because allowing unwinding could lead to
+dangling references and undefined behavior.
 
 ```rust
 struct StaticBorrow(ScopedBorrow<i32>);
