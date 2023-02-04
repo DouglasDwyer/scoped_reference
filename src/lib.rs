@@ -8,30 +8,30 @@
 //! If the underlying reference is dropped while scoped borrows to it still exist, then the program panics. Note that a panic
 //! will always cause an immediate abort - unwinding is not allowed - because allowing unwinding could lead to
 //! dangling references and undefined behavior.
-//! 
+//!
 //! ```no_run
 //! # use scoped_reference::*;
 //! struct StaticBorrow(ScopedBorrow<i32>);
-//! 
+//!
 //! # fn test_borrow_mut() {
 //! let mut x = 10;
 //! let borrowed_x = &mut x;
 //! let mut scoped_ref = ScopedReference::new_mut(borrowed_x);
-//! 
+//!
 //! let mut mut_ref_to_x = scoped_ref.borrow_mut();
 //! *mut_ref_to_x = 9;
-//! 
+//!
 //! // Panic: mut_ref_to_x is still out!
 //! // drop(scoped_ref);
-//! 
+//!
 //! drop(mut_ref_to_x);
-//! 
+//!
 //! let static_borrow = StaticBorrow(scoped_ref.borrow());
 //! assert_eq!(*static_borrow.0, 9);
-//! 
+//!
 //! // Panic: static_borrow is still out!
 //! // drop(scoped_ref);
-//! 
+//!
 //! drop(static_borrow);
 //! drop(scoped_ref);
 //! # }
@@ -42,16 +42,16 @@ extern crate alloc;
 #[cfg(feature = "std")]
 use std as alloc;
 
+use alloc::sync::Arc;
 use core::fmt;
 use core::ops::{Deref, DerefMut};
-use alloc::sync::Arc;
 use core::sync::atomic::{AtomicUsize, Ordering};
 
 /// Allows for obtaining references with `'static` lifetime via runtime
 /// borrow checking.
 pub struct ScopedReference<'a, T: ?Sized> {
     reference: Result<&'a T, &'a mut T>,
-    alive: Arc<AtomicUsize>
+    alive: Arc<AtomicUsize>,
 }
 
 impl<'a, T: ?Sized> ScopedReference<'a, T> {
@@ -74,15 +74,22 @@ impl<'a, T: ?Sized> ScopedReference<'a, T> {
         match &self.reference {
             Ok(r) => {
                 self.alive.fetch_add(1, Ordering::Release);
-                ScopedBorrow { pointer: *r as *const T, alive: self.alive.clone() }
-            },
+                ScopedBorrow {
+                    pointer: *r as *const T,
+                    alive: self.alive.clone(),
+                }
+            }
             Err(r) => {
                 if self.alive.load(Ordering::Acquire) == usize::MAX {
-                    panic_abort("Cannot borrow a lifetime mutably while it is already borrowed immutably.");
-                }
-                else {
+                    panic_abort(
+                        "Cannot borrow a lifetime mutably while it is already borrowed immutably.",
+                    );
+                } else {
                     self.alive.fetch_add(1, Ordering::Release);
-                    ScopedBorrow { pointer: *r as *const T, alive: self.alive.clone() }
+                    ScopedBorrow {
+                        pointer: *r as *const T,
+                        alive: self.alive.clone(),
+                    }
                 }
             }
         }
@@ -92,10 +99,17 @@ impl<'a, T: ?Sized> ScopedReference<'a, T> {
     pub fn borrow_mut(&mut self) -> ScopedBorrowMut<T> {
         if self.alive.load(Ordering::Acquire) != 0 {
             panic_abort("Scoped lifetime is already borrowed.")
-        }
-        else {
+        } else {
             self.alive.store(usize::MAX, Ordering::Release);
-            ScopedBorrowMut { pointer: unsafe { self.reference.as_mut().map_err(|x| *x as *mut T).unwrap_err_unchecked() }, alive: self.alive.clone() }
+            ScopedBorrowMut {
+                pointer: unsafe {
+                    self.reference
+                        .as_mut()
+                        .map_err(|x| *x as *mut T)
+                        .unwrap_err_unchecked()
+                },
+                alive: self.alive.clone(),
+            }
         }
     }
 }
@@ -123,7 +137,7 @@ impl<'a, T: ?Sized> Drop for ScopedReference<'a, T> {
 /// Represents a borrow with a runtime-checked lifetime.
 pub struct ScopedBorrow<T: ?Sized> {
     pointer: *const T,
-    alive: Arc<AtomicUsize>
+    alive: Arc<AtomicUsize>,
 }
 
 impl<T: ?Sized> Deref for ScopedBorrow<T> {
@@ -143,7 +157,10 @@ impl<T: ?Sized> Drop for ScopedBorrow<T> {
 impl<T: ?Sized> Clone for ScopedBorrow<T> {
     fn clone(&self) -> Self {
         self.alive.fetch_add(1, Ordering::Release);
-        Self { pointer: self.pointer, alive: self.alive.clone() }
+        Self {
+            pointer: self.pointer,
+            alive: self.alive.clone(),
+        }
     }
 }
 
@@ -165,7 +182,7 @@ unsafe impl<T: ?Sized + Sync> Sync for ScopedBorrow<T> {}
 /// Represents a mutable borrow with a runtime-checked lifetime.
 pub struct ScopedBorrowMut<T: ?Sized> {
     pointer: *mut T,
-    alive: Arc<AtomicUsize>
+    alive: Arc<AtomicUsize>,
 }
 
 impl<T: ?Sized> Deref for ScopedBorrowMut<T> {
@@ -245,7 +262,7 @@ mod tests {
         let mut x = 10;
         let borrowed_x = &mut x;
         let mut scoped_ref = ScopedReference::new_mut(borrowed_x);
-        
+
         let mut mut_ref_to_x = scoped_ref.borrow_mut();
         *mut_ref_to_x = 9;
 
