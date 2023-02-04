@@ -42,10 +42,10 @@ extern crate alloc;
 #[cfg(feature = "std")]
 use std as alloc;
 
-use alloc::sync::Arc;
+use alloc::sync::*;
 use core::fmt;
-use core::ops::{Deref, DerefMut};
-use core::sync::atomic::{AtomicUsize, Ordering};
+use core::ops::*;
+use core::sync::atomic::*;
 
 /// Allows for obtaining references with `'static` lifetime via runtime
 /// borrow checking.
@@ -224,11 +224,11 @@ unsafe impl<T: ?Sized + Sync> Sync for ScopedBorrowMut<T> {}
 fn panic_abort(error: &str) -> ! {
     #[cfg(panic = "abort")]
     {
-        panic!("{}", error);
+        panic!("{error}");
     }
     #[cfg(all(not(panic = "abort"), feature = "std"))]
     {
-        println!("{}", error);
+        println!("{error}");
         std::process::abort();
     }
     #[cfg(all(not(panic = "abort"), not(feature = "std")))]
@@ -245,7 +245,7 @@ fn panic_abort(error: &str) -> ! {
         #[allow(unused_variables)]
         let abort = Abort;
 
-        panic!("{}", error);
+        panic!("{error}");
 
         core::mem::forget(abort);
     }
