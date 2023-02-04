@@ -1,4 +1,5 @@
 #![deny(warnings)]
+#![cfg_attr(not(feature = "std"), no_std)]
 
 //! This crate provides runtime-checked borrow lifetimes. It allows one to store references of the form `&'a T` as structs with lifetime `'static`.
 //! This is useful in situations where a reference with a shorter lifetime cannot be stored naturally.
@@ -36,9 +37,15 @@
 //! # }
 //! ```
 
-use std::ops::*;
-use std::sync::*;
-use std::sync::atomic::*;
+#[cfg(not(feature = "std"))]
+extern crate alloc;
+#[cfg(feature = "std")]
+use std as alloc;
+
+use core::fmt;
+use core::ops::{Deref, DerefMut};
+use alloc::sync::Arc;
+use core::sync::atomic::{AtomicUsize, Ordering};
 
 /// Allows for obtaining references with `'static` lifetime via runtime
 /// borrow checking.
@@ -93,14 +100,14 @@ impl<'a, T: ?Sized> ScopedReference<'a, T> {
     }
 }
 
-impl<'a, T: ?Sized> std::fmt::Debug for ScopedReference<'a, T> {
-    fn fmt(&self, _: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl<'a, T: ?Sized> fmt::Debug for ScopedReference<'a, T> {
+    fn fmt(&self, _: &mut fmt::Formatter<'_>) -> fmt::Result {
         Ok(())
     }
 }
 
-impl<'a, T: ?Sized> std::fmt::Display for ScopedReference<'a, T> {
-    fn fmt(&self, _: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl<'a, T: ?Sized> fmt::Display for ScopedReference<'a, T> {
+    fn fmt(&self, _: &mut fmt::Formatter<'_>) -> fmt::Result {
         Ok(())
     }
 }
@@ -140,15 +147,15 @@ impl<T: ?Sized> Clone for ScopedBorrow<T> {
     }
 }
 
-impl<T: std::fmt::Debug + ?Sized> std::fmt::Debug for ScopedBorrow<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Debug::fmt(&**self, f)
+impl<T: fmt::Debug + ?Sized> fmt::Debug for ScopedBorrow<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(&**self, f)
     }
 }
 
-impl<T: std::fmt::Display + ?Sized> std::fmt::Display for ScopedBorrow<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(&**self, f)
+impl<T: fmt::Display + ?Sized> fmt::Display for ScopedBorrow<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(&**self, f)
     }
 }
 
@@ -181,30 +188,49 @@ impl<T: ?Sized> Drop for ScopedBorrowMut<T> {
     }
 }
 
-impl<T: std::fmt::Debug + ?Sized> std::fmt::Debug for ScopedBorrowMut<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Debug::fmt(&**self, f)
+impl<T: fmt::Debug + ?Sized> fmt::Debug for ScopedBorrowMut<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(&**self, f)
     }
 }
 
-impl<T: std::fmt::Display + ?Sized> std::fmt::Display for ScopedBorrowMut<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(&**self, f)
+impl<T: fmt::Display + ?Sized> fmt::Display for ScopedBorrowMut<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(&**self, f)
     }
 }
 
 unsafe impl<T: ?Sized + Send> Send for ScopedBorrowMut<T> {}
 unsafe impl<T: ?Sized + Sync> Sync for ScopedBorrowMut<T> {}
 
+#[allow(unreachable_code)]
 fn panic_abort(error: &str) -> ! {
     #[cfg(panic = "abort")]
     {
         panic!("{}", error);
     }
-    #[cfg(not(panic = "abort"))]
+    #[cfg(all(not(panic = "abort"), feature = "std"))]
     {
         println!("{}", error);
         std::process::abort();
+    }
+    #[cfg(all(not(panic = "abort"), not(feature = "std")))]
+    {
+        struct Abort;
+
+        // Panic in a drop while panicking aborts the process
+        impl Drop for Abort {
+            fn drop(&mut self) {
+                panic!();
+            }
+        }
+
+        #[allow(unused_variables)]
+        let abort = Abort;
+
+        panic!("{}", error);
+
+        core::mem::forget(abort);
     }
 }
 

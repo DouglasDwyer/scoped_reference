@@ -8,3 +8,7 @@ readme = "README.md"
 description = """
 Runtime-checked borrow lifetimes.
 """
+
+[features]
+default = ["std"]
+std = []
